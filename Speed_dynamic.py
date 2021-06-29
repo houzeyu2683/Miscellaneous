@@ -1,5 +1,4 @@
 import csv
-import numpy
 import pandas as pd
 import os
 import random
@@ -55,7 +54,6 @@ def fixed_distance(raw_dataset_train, target_distance, tolerance_low, tolerance_
     d = [raw_dataset_train[0]]
     d = np.array(d,np.float64)
     
-    
     start = raw_dataset_train[0]
     # max_distance = 0
     speed = target_distance
@@ -69,6 +67,7 @@ def fixed_distance(raw_dataset_train, target_distance, tolerance_low, tolerance_
         upper = interval
         bottom = -1 * interval
     for i in range(1,raw_dataset_train.shape[0]):
+
         distance = calculate_distance(start[3], start[4], raw_dataset_train[i][3], raw_dataset_train[i][4])
         if distance > speed+2*tolerance_high:
             #print(f"distance too big {distance}")
@@ -79,13 +78,13 @@ def fixed_distance(raw_dataset_train, target_distance, tolerance_low, tolerance_
             start = raw_dataset_train[i]
             d = np.append(d,[start],axis = 0)
             change = speed + random.uniform(bottom, upper)
-            if change > speed_max or change < speed_min:
-                if case != 2:
+            if change > speed_max or change < speed_min: ##  當速度改變過大或過小，需要調整 uniform 的範圍
+                if case != 2:  ##  如果 case 不是 2
                     temp = bottom
                     bottom = -1 * upper
                     upper = -1 * temp
             else :
-                speed =  change
+                speed =  change # 當速度改變的量是可以被接收，那速度就可以更新。
     print(f"Generate {len(d)} datapoints")
     return d
     
@@ -126,12 +125,16 @@ def sample_sequence(raw_dataset_train, filename, add_la,add_lo,scale,step,choose
         for s in choose_start: # [0,0,0,0,0]
             for case in range(3): # [0,1,2]
                 dataset_train = fixed_distance(raw_dataset_train[s:, :],target_distance, tolerance_low, tolerance_high, speed_max, speed_min, interval, case)
-  
+                
+                print(dataset_train.shape)
+                ##  不懂上面就想成挑了一些點，那些點組成了一個軌跡路徑。
+
                 #================================Want to evaluate second differential================================
+                # 這邊看起來像是一次微分，但上述居然寫二次微分，莫非前面找點的方式就是一次微分？
                 second_dataset_train = np.zeros((dataset_train.shape[0],dataset_train.shape[1]))
                 for i in range(len(second_dataset_train)):
                     if i==0:
-                        continue
+                        continue  ##  第一筆資料沒有上一個狀態的座標，所以變化量就是 0 。
                     else:
                         second_dataset_train[i] = dataset_train[i] - dataset_train[i-1]
                 
@@ -142,10 +145,11 @@ def sample_sequence(raw_dataset_train, filename, add_la,add_lo,scale,step,choose
 
                 total = dataset_train.shape[0]
                 sample_number= total-step
-                if sample_number < 0:
+                if sample_number < 0: ##  太小直接考慮下一個 case
                     continue
                 li = [i for i in range((step-1),total)]
-                res = random.sample(li,sample_number)
+                li_length = len(li)
+                res = random.sample(li,sample_number)  ##  打散 index
                 #---------------Want to calculate feature-------------------------------------
                 #---------------data for full_step (60) ----------------------------------------
                 #---------------data1 for half_step (30) ----------------------------------------
@@ -153,36 +157,49 @@ def sample_sequence(raw_dataset_train, filename, add_la,add_lo,scale,step,choose
                 data = np.array(data, np.float64)
                 data1=[]
                 data1 = np.array(data, np.float64)
-                for positions in res:
+                for positions in res:  ##  固定一個位置
                     #-----------------Positive direction--------------------
                     #positions is the final data points in this path
-                    for cnt, i in enumerate(range((positions-(step-1)),positions+1)):
-                        if cnt >= step/2:
-                            data1 = np.append(data1,dataset_train[i][0]-dataset_train[i-1][0])
-                            data1 = np.append(data1,dataset_train[i][1]-dataset_train[i-1][1])
-                            data1 = np.append(data1,dataset_train[i][2]-dataset_train[i-1][2])
+                    loop = range((positions-(step-1)),positions+1)  ##  往回推 60 步
+                    for cnt, i in enumerate(loop):  ## 對於每一步執行下面
+                        if cnt >= step/2: ##  後30個步會新增一個 data1 來存資料，但data持續執行
+                            data1 = np.append(data1,dataset_train[i][0]-dataset_train[i-1][0]) # 變化量
+                            data1 = np.append(data1,dataset_train[i][1]-dataset_train[i-1][1]) # 變化量
+                            data1 = np.append(data1,dataset_train[i][2]-dataset_train[i-1][2]) # 變化量
                             data1 = np.append(data1,second_dataset_train[i][0]-second_dataset_train[i-1][0])
                             data1 = np.append(data1,second_dataset_train[i][1]-second_dataset_train[i-1][1])
                             data1 = np.append(data1,second_dataset_train[i][2]-second_dataset_train[i-1][2])
-                            
-                        data = np.append(data,dataset_train[i][0]-dataset_train[i-1][0])
-                        data = np.append(data,dataset_train[i][1]-dataset_train[i-1][1])
-                        data = np.append(data,dataset_train[i][2]-dataset_train[i-1][2])
+                            data1_shape = data1.shape
+                            print(data1_shape)
+
+                        ##  一定會執行    
+                        data = np.append(data,dataset_train[i][0]-dataset_train[i-1][0]) #
+                        data = np.append(data,dataset_train[i][1]-dataset_train[i-1][1]) #
+                        data = np.append(data,dataset_train[i][2]-dataset_train[i-1][2]) #
                         data = np.append(data,second_dataset_train[i][0]-second_dataset_train[i-1][0])
                         data = np.append(data,second_dataset_train[i][1]-second_dataset_train[i-1][1])
                         data = np.append(data,second_dataset_train[i][2]-second_dataset_train[i-1][2])
-                        if i == positions:
+                        data_shape = data.shape
+                        print(data_shape)
+
+                        ##  這邊看起來要處理 target
+                        if i == positions: ##  最後一圈執行
                             data1 = np.append(data1,np.full((int(step/2)*6), fill_value=special_value))         
                             data1 = np.append(data1,(dataset_train[i][3]-add_la)*scale)
                             data1 = np.append(data1,(dataset_train[i][4]-add_lo)*scale)
                             data = np.append(data,(dataset_train[i][3]-add_la)*scale)
                             data = np.append(data,(dataset_train[i][4]-add_lo)*scale)
-                    w.writerow(data)
-                    w.writerow(data1)
+                    w.writerow(data)  ##  1 row 1 row 的寫進去資料
+                    w.writerow(data1)  ##  1 row 1 row 的寫進去資料
+                    
+                    print("shape of data : {}".format(data.shape))
+                    print("shape of data1 : {}".format(data1.shape))
+                    print('try understand data and data1.')
+
                     data=[]
                     data = np.array(data, np.float64)
                     data1=[]
-                    data1 = np.array(data, np.float64)            
+                    data1 = np.array(data, np.float64)
 
 
 def Suture(files,filename,add_la,add_lo,scale,step,choose_start,target_distance,speed_max, speed_min, interval):
@@ -333,7 +350,8 @@ if __name__ == '__main__':
     filename = "Suture0311.csv"
     if os.path.isfile(filepath):
         os.remove(filename)
-    random.seed(1234)
+    # random.seed(1234)
+    random.seed(123456)
     add_la = 25.08
     add_lo = 121.55
     scale=10000
