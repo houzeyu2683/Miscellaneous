@@ -71,17 +71,16 @@ server {
 
 不管是服務一或是服務二都正常地在運行，他們原先都會使用各自的靜態資源，但這些靜態資源有時會統一管理，基於這樣的情境，假設公司新增一台伺服器（12.333.23.41）來存放靜態資源，請你在這台伺服器上配置 Nginx 文件，讓你的夥伴可以利用網路位址的訪問方式來獲取靜態資源。
 
-假設你決定用 http://12.333.23.41/ 位置來公開靜態內容的資料夾（/data/static/）。伺服器中的 Nginx 配置放在 /etc/nginx/conf.d/display.conf 文件，修改參考下面內容。
+假設你決定用 http://12.333.23.41/app/static/ 位置來公開伺服器上的靜態資源資料夾（/data/static/）。伺服器中的 Nginx 配置放在 /etc/nginx/conf.d/display.conf 文件，修改參考下面內容，這裡需要注意的是使用 alias 參數，而不是 root 參數。
 
 ```
 server {
     server_name 12.333.23.414;
     listen 80;
-    location ~ / {
-        root /data/static/;
+    location ~ /app/static/ {
+        alias /data/static/;
         autoindex on;
     }
 }
 ```
-
 
